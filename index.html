@@ -73,8 +73,9 @@
                 type: deck.HexagonLayer,
                 data: [],
                 getPosition: d => [d.longitude, d.latitude],
-                radius: 17000,
-                elevationDomain: [0, 30],
+                radius: 14000,
+                coverage: 0.8,
+                elevationDomain: [0, 32],
                 colorRange: [
                     [221,220,190],
                     [158,140,138],
@@ -83,7 +84,7 @@
                     [136,20,94],
                     [133,10,74],
                 ],
-                elevationScale: 200,
+                elevationScale: 300,
                 extruded: true,
             });
 
