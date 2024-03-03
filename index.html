@@ -7,8 +7,7 @@
     />
     <head>
         <title>preact_template</title>
-        <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
-
+        <script src="https://unpkg.com/deck.gl@^8.9.35/dist.min.js"></script>
         <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
         <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
         <style>
@@ -16,77 +15,108 @@
                 margin: 0;
                 padding: 0;
             }
-            #map {
+            #container {
                 height: 100vh;
                 width: 100vw;
+            }
+            #map {
+                height: 100%;
+                width: 100%;
+            }
+            #year, #title {
+                border: 1px solid black;
+                box-shadow: 0 0 0 2px rgba(0,0,0,.1);
+                border-radius: 4px;
+                background: white;
+                padding: 0.5rem 1rem;
+                position: absolute;
+                font-size: 1.1rem;
+                z-index: 1;
+                font-family: Helvetica Neue, Arial, Helvetica, sans-serif;
+            }
+            #year {
+                bottom: 0.5rem;
+                left: 0.5rem;
+            }
+            #title {
+                top: 0.5rem;
+                left: 0.5rem;
+            }
+            .maplibregl-ctrl {
+                border: 1px solid black;
             }
         </style>
     </head>
     <body>
+        <div id="container">
+            <span id="year">year: 1930</span>
+            <span id="title">Bigfoot sightings over time</span>
+            <div id="map">
+        </div>
         <script type="module">
-            import htm from 'https://esm.sh/htm@3.1.1';
-            import { h, Component, render } from 'https://esm.sh/preact@10.13.2';
-            import { useState, useLayoutEffect } from 'https://esm.sh/preact@10.13.2/hooks';
-
-            const html = htm.bind(h);
-
-            const MAP_ID = 'map';
             const KEY = 'ffsEnKgX76rALUgJI5PP';
+            const CENTER = [-96, 40]
 
-            function renderMap(id) {
-                const map = new maplibregl.Map({
-                    container: id,
-                    style: `https://api.maptiler.com/maps/toner-v2/style.json?key=${KEY}`,
-                    center: [-122.4, 37.79],
-                    zoom: 15,
-                    pitch: 60,
-                })
-                map.addControl(new maplibregl.NavigationControl(), 'top-right');
+            const response = await fetch('./bfro.json');
+            const data = await response.json();
 
-                map.on('load', () => {
-                    const firstLabelLayerId = map.getStyle().layers.find(layer => layer.type === 'symbol').id;
+            const map = new maplibregl.Map({
+                container: "map",
+                style: `https://api.maptiler.com/maps/toner-v2/style.json?key=${KEY}`,
+                center: CENTER,
+                zoom: 4,
+                pitch: 30,
+            })
+            map.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-                    const arcLayer = new deck.MapboxLayer({
-                        id: 'deckgl-connections',
-                        type: deck.ArcLayer,
-                        data: [
-                            {source: [-122.3998664, 37.7883697], target: [-122.403068, 37.7930503]}
-                        ],
-                        getSourcePosition: d => d.source,
-                        getTargetPosition: d => d.target,
-                        getSourceColor: [255, 0, 128],
-                        getTargetColor: [0, 200, 255],
-                        getWidth: 8
+            const hex_layer = new deck.MapboxLayer({
+                id: 'hexagon-layer',
+                type: deck.HexagonLayer,
+                data: [],
+                getPosition: d => [d.longitude, d.latitude],
+                radius: 17000,
+                elevationDomain: [0, 30],
+                colorRange: [
+                    [221,220,190],
+                    [158,140,138],
+                    [140,110,118],
+                    [139,80,107],
+                    [136,20,94],
+                    [133,10,74],
+                ],
+                elevationScale: 200,
+                extruded: true,
+            });
+
+            map.on('load', () => {
+                const firstLabelLayerId = map.getStyle().layers.find(layer => layer.type === 'symbol').id;
+                map.addLayer(hex_layer, firstLabelLayerId);
+                animateFilter(hex_layer, data);
+            });
+
+            function animateFilter(layer, data) {
+                const currentYear = new Date().getFullYear();
+                let elapsed = 0;
+                let previous = 0;
+                const animation = (now) => {
+                    elapsed += now - previous;
+                    previous = now;
+
+                    const maxYear = 1930 + elapsed / 100
+                    document.querySelector("#year").innerText = `year: ${Math.floor(maxYear)}`
+
+                    layer.setProps({
+                        data: data.filter(row => (
+                            new Date(row.timestamp).getFullYear() < maxYear
+                        ))
                     });
-                    map.addLayer(arcLayer);
 
-                    map.addLayer(new deck.MapboxLayer({
-                        id: 'deckgl-circle',
-                        type: deck.ScatterplotLayer,
-                        data: [
-                            {position: [-122.402, 37.79], color: [255, 0, 0], radius: 1000}
-                        ],
-                        getPosition: d => d.position,
-                        getFillColor: d => d.color,
-                        getRadius: d => d.radius,
-                        opacity: 0.3
-                    }), firstLabelLayerId);
-                });
+                    if (maxYear < currentYear) {
+                        setTimeout(() => requestAnimationFrame(animation), 10);
+                    }
+                }
+                requestAnimationFrame(animation);
             }
-
-            function App (props) {
-                const [count, setCount] = useState(0);
-
-                useLayoutEffect(() => {
-                    renderMap(MAP_ID)
-                });
-
-                return html`<div>
-                    <div id=${MAP_ID} />
-                </div>`
-            }
-
-            render(html`<${App} name="world" />`, document.body)
         </script>
     </body>
 </html>
